@@ -4,6 +4,11 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
+from torchvision.datasets import ImageFolder
+from torch.utils.data import Subset
+from sklearn.model_selection import train_test_split
+from torchvision.transforms import Compose, ToTensor, Resize
+from torch.utils.data import DataLoader
 
 def get_transforms(params, train=True):
     mean, std = params["mean"], params["std"]
@@ -27,6 +32,12 @@ def get_transforms(params, train=True):
                 transforms.Normalize(mean, std),
             ])
 
+def train_val_dataset(dataset, val_split=0.25):
+    train_idx, val_idx = train_test_split(list(range(len(dataset))), test_size=val_split)
+    datasets = {}
+    datasets['train'] = Subset(dataset, train_idx)
+    datasets['val'] = Subset(dataset, val_idx)
+    return datasets
 
 def get_loaders(params):
     train_tf = get_transforms(params, train=True)
@@ -38,6 +49,16 @@ def get_loaders(params):
     else:  # cifar10
         train_ds = datasets.CIFAR10(params["data_dir"], train=True,  download=True, transform=train_tf)
         val_ds   = datasets.CIFAR10(params["data_dir"], train=False, download=True, transform=val_tf)
+
+
+    datasetler = train_val_dataset(train_ds)
+    print(len(datasetler['train']))
+    print(len(datasetler['val']))
+    # The original dataset is available in the Subset class
+    print(datasetler['train'].dataset)
+    train_ds = datasetler['train']
+    val_ds = datasetler['val']
+
 
     train_loader = DataLoader(train_ds, batch_size=params["batch_size"],
                               shuffle=True,  num_workers=params["num_workers"])
