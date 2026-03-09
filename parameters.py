@@ -40,7 +40,7 @@ def get_params():
         # Model
         "model":        args.model,
         "input_size":   input_size,
-        "hidden_sizes": [512, 256, 128],
+        "hidden_sizes": [650, 350, 175],
         "num_classes":  10,
         "dropout":      0.3,
         "vgg_depth":    args.vgg_depth,

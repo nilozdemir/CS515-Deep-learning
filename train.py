@@ -10,6 +10,9 @@ from sklearn.model_selection import train_test_split
 from torchvision.transforms import Compose, ToTensor, Resize
 from torch.utils.data import DataLoader
 
+import matplotlib.pyplot as plt
+import numpy as np
+
 def get_transforms(params, train=True):
     mean, std = params["mean"], params["std"]
 
@@ -115,6 +118,8 @@ def run_training(model, params, device):
     best_acc     = 0.0
     best_weights = None
 
+    Loss_train = []
+    Loss_val = []
     for epoch in range(1, params["epochs"] + 1):
         print(f"\nEpoch {epoch}/{params['epochs']}")
         tr_loss, tr_acc = train_one_epoch(model, train_loader, optimizer,
@@ -131,5 +136,17 @@ def run_training(model, params, device):
             torch.save(best_weights, params["save_path"])
             print(f"  Saved best model (val_acc={best_acc:.4f})")
 
+        #for visualization of train/val loss graph
+        Loss_train.append(tr_loss)
+        Loss_val.append(val_loss)
+
     model.load_state_dict(best_weights)
     print(f"\nTraining done. Best val accuracy: {best_acc:.4f}")
+
+    #visualize
+    plt.xlabel('Number of epochs')
+    plt.ylabel('Loss')
+    plt.plot(np.arange(params["epochs"]), Loss_train, color = 'blue', label = 'Train')
+    plt.plot(np.arange(params["epochs"]), Loss_val, color = 'red', label = 'Validation')
+    plt.legend()
+    plt.show()
