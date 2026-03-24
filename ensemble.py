@@ -50,7 +50,15 @@ test_loader  = DataLoader(test_dataset,  batch_size=64, shuffle=False, num_worke
 # ── Model builders ─────────────────────────────────────────────────────────────
 def load_resnet18(num_classes=10):
     m = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+    m.conv1 = nn.Conv2d(3, 64, 3, 1, 1, bias=False)
     m.fc = nn.Linear(m.fc.in_features, num_classes)
+    for name, param in m.named_parameters():
+        if 'layer4' not in name and 'fc' not in name and 'conv1' not in name:
+            param.requires_grad = False
+
+    print("Named parameters in the model:")
+    for name, param in m.named_parameters():
+        print(f"Name: {name} | Shape: {param.shape} | requires_grad: {param.requires_grad}")
     return m.to(device)
 
 def load_mobilenet_v2(num_classes=10):
@@ -167,25 +175,30 @@ if __name__ == "__main__":
 
     # 1. Load pretrained backbones
     resnet    = load_resnet18()
-    mobilenet = load_mobilenet_v2()
-    vgg       = load_vgg16()
+    #mobilenet = load_mobilenet_v2()
+    #vgg       = load_vgg16()
 
     # 2. Fine-tune each for 10 epochs
     resnet    = fine_tune(resnet,    "resnet18",     epochs=10)
-    mobilenet = fine_tune(mobilenet, "mobilenet_v2", epochs=10)
-    vgg       = fine_tune(vgg,       "vgg16",        epochs=10)
+    #mobilenet = fine_tune(mobilenet, "mobilenet_v2", epochs=10)
+    #vgg       = fine_tune(vgg,       "vgg16",        epochs=10)
 
     # 3. Individual accuracy after fine-tuning
     print("\nIndividual model accuracies (after fine-tuning):")
-    for name, m in [("ResNet-18", resnet), ("MobileNet-V2", mobilenet), ("VGG-16", vgg)]:
+    """for name, m in [("ResNet-18", resnet), ("MobileNet-V2", mobilenet), ("VGG-16", vgg)]:
         acc = evaluate(m, test_loader, strategy="soft")
-        print(f"  {name:<15}: {acc:.4f}")
+        print(f"  {name:<15}: {acc:.4f}")"""
+    
+    name = "ResNet-18"
+    m = resnet
+    acc = evaluate(m, test_loader, strategy="soft")
+    print(f"  {name:<15}: {acc:.4f}")
 
     # 4. Ensemble
-    ensemble = EnsembleModel([resnet, mobilenet, vgg])
+    #ensemble = EnsembleModel([resnet, mobilenet, vgg])
     print("\nEnsemble accuracies:")
-    print(f"  Soft voting : {evaluate(ensemble, test_loader, strategy='soft'):.4f}")
-    print(f"  Hard voting : {evaluate(ensemble, test_loader, strategy='hard'):.4f}")
+    print(f"  Soft voting : {evaluate(resnet, test_loader, strategy='soft'):.4f}")
+    print(f"  Hard voting : {evaluate(resnet, test_loader, strategy='hard'):.4f}")
 
 
     """

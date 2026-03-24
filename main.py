@@ -12,7 +12,7 @@ from models.mobilenet import MobileNetV2
 from train import run_training
 from test  import run_test
 
-
+from ptflops import get_model_complexity_info
 # Fix for macOS SSL certificate verification error when downloading MNIST
 ssl._create_default_https_context = ssl._create_unverified_context
 
@@ -78,10 +78,23 @@ def main():
     print(f"Using device: {device}")
 
     model = build_model(params).to(device)
-    print(model)
+    tm = ResNet(BasicBlock, params["resnet_layers"], num_classes=params['num_classes'])
+    tm.load_state_dict(torch.load('best_model_teacher.pth', weights_only=True, map_location=torch.device('cpu') ))
+
+    #with torch.cuda.device(0):
+    net = model
+    macs, paramsf = get_model_complexity_info(net, (3, 32, 32), as_strings=True, backend='pytorch',
+                                           print_per_layer_stat=True, verbose=True)
+    print('{:<30}  {:<8}'.format('Computational complexity: ', macs))
+    print('{:<30}  {:<8}'.format('Number of parameters: ', paramsf))
+
+    macs, paramsf = get_model_complexity_info(net, (3, 32, 32), as_strings=True, backend='aten',
+                                       print_per_layer_stat=True, verbose=True)
+    print('{:<30}  {:<8}'.format('Computational complexity: ', macs))
+    print('{:<30}  {:<8}'.format('Number of parameters: ', paramsf))
 
     if params["mode"] in ("train", "both"):
-        run_training(model, params, device)
+        run_training(tm, model, params, device)
 
     if params["mode"] in ("test", "both"):
         run_test(model, params, device)

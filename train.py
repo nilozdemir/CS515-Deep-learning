@@ -10,6 +10,7 @@ from sklearn.model_selection import train_test_split
 from torchvision.transforms import Compose, ToTensor, Resize
 from torch.utils.data import DataLoader
 
+from utils import DistillationLoss
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -69,21 +70,33 @@ def get_loaders(params):
                               shuffle=False, num_workers=params["num_workers"])
     return train_loader, val_loader
 
+def label_smoothing(labels, num_classes, sm_factor = 0.1 ):
+    """
+    label smoothing applied to one-hot encoded vector
+    arXiv:2003.02819 
+    """
+    new_labels = (1-sm_factor)*labels + sm_factor/num_classes
+    return new_labels
 
-def train_one_epoch(model, loader, optimizer, criterion, device, log_interval):
+def train_one_epoch(tmodel, model, loader, optimizer, criterion, device, log_interval, nc, kd='soft'):
     model.train()
+    tmodel.eval()
+    
     total_loss, correct, n = 0.0, 0, 0
-    for batch_idx, (imgs, labels) in enumerate(loader):
+    for batch_idx, (imgs, labels) in enumerate(loader):  
         imgs, labels = imgs.to(device), labels.to(device)
+        if kd =='soft':
+            tlogits = tmodel(imgs)
 
         optimizer.zero_grad()
-        out  = model(imgs)
-        loss = criterion(out, labels)
+        slogits  = model(imgs)
+
+        loss = criterion(slogits, tlogits, labels)
         loss.backward()
         optimizer.step()
 
         total_loss += loss.detach().item() * imgs.size(0)
-        correct    += out.argmax(1).eq(labels).sum().item()
+        correct    += slogits.argmax(1).eq(labels).sum().item()
         n          += imgs.size(0)
 
         if (batch_idx + 1) % log_interval == 0:
@@ -107,9 +120,11 @@ def validate(model, loader, criterion, device):
     return total_loss / n, correct / n
 
 
-def run_training(model, params, device):
+def run_training(tmodel, model, params, device):
     train_loader, val_loader = get_loaders(params)
-    criterion = nn.CrossEntropyLoss()
+    #knowledge distillation
+    criterion = DistillationLoss(temperature=4.0, alpha=0.7)
+    criterion_val = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(),
                                  lr=params["learning_rate"],
                                  weight_decay=params["weight_decay"])
@@ -122,9 +137,9 @@ def run_training(model, params, device):
     Loss_val = []
     for epoch in range(1, params["epochs"] + 1):
         print(f"\nEpoch {epoch}/{params['epochs']}")
-        tr_loss, tr_acc = train_one_epoch(model, train_loader, optimizer,
-                                          criterion, device, params["log_interval"])
-        val_loss, val_acc = validate(model, val_loader, criterion, device)
+        tr_loss, tr_acc = train_one_epoch(tmodel, model, train_loader, optimizer,
+                                          criterion, device, params["log_interval"], params['num_classes'], kd='soft')
+        val_loss, val_acc = validate(model, val_loader, criterion_val, device)
         scheduler.step()
 
         print(f"  Train loss: {tr_loss:.4f}  acc: {tr_acc:.4f}")
